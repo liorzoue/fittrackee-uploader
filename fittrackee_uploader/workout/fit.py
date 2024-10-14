@@ -123,10 +123,18 @@ class FitFile(Workout):
         """
         stats = ""
         if self.attributes is not None:
-            stats = f'Average Heart Rate: {self.attributes["avg_heart_rate"]} Bpm \n'
-            stats += f'Maximum Heart Rate: {self.attributes["max_heart_rate"]} Bpm \n'
-            stats += f'Calories: {self.attributes["calories"]} kcal \n'
-            stats += f'Sport Type: {self.attributes["custom_sport"]}'
+            stats = ''
+            if "avg_heart_rate" in self.attributes:
+                stats += f'Average Heart Rate: {self.attributes["avg_heart_rate"]} Bpm \n'
+            if "max_heart_rate" in self.attributes:            
+                stats += f'Maximum Heart Rate: {self.attributes["max_heart_rate"]} Bpm \n'
+            if "calories" in self.attributes:
+                stats += f'Calories: {self.attributes["calories"]} kcal \n'
+            if "custom_sport" in self.attributes:
+                stats += f'Sport Type: {self.attributes["custom_sport"]}'
+
+            if stats == '':
+                stats = "No statistics available"
         return stats
 
 
