@@ -83,7 +83,7 @@ class FitFile(Workout):
             if record.has_position():
                 point = Point(
                     record.timestamp,
-                    (record.getLat(), record.getLong()),
+                    (record.getLat(8), record.getLong(8)),
                     record.altitude,
                     record.speed,
                     record.heart_rate,
