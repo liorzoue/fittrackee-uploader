@@ -269,7 +269,10 @@ class Uploader(QtWidgets.QMainWindow):
         self.completer_model.setStringList(self.config.used_names)
         self.config.saveConfig()
         if self.config.add_stats:
-            notes = self.current_workout.getStats()
+            if self.current_workout is not None:
+                notes = self.current_workout.getStats()
+            else:
+                notes = ""
         else:
             notes = ""
 
