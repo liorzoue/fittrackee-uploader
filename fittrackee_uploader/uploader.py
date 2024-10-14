@@ -15,6 +15,8 @@ from .workout import loader
 from PyQt6 import QtCore, QtWidgets
 from .ui.main import Ui_MainWindow
 
+import pandas as pd
+
 
 class Uploader(QtWidgets.QMainWindow):
     """Uploader class."""
@@ -37,16 +39,21 @@ class Uploader(QtWidgets.QMainWindow):
 
         self.login()
 
+        self.strava_csv = None
         self.files = []
         self.loader = loader.Loader()
-        self.sports = None
+        self.sports = []
         self.equipment = None
         self.current_workout = None
 
         self.completer_model = QtCore.QStringListModel(self.config.used_names)
         self.completer = QtWidgets.QCompleter(self.completer_model, self)
         self.ui.tbTitle.setCompleter(self.completer)
+
         if self.config.folder != "":
+            if os.path.isfile(self.config.folder+'../activities.csv'):
+                logging.info(f"Loading Strava CSV: {self.config.folder+'../activities.csv'}")
+                self.loadStravaCSV(self.config.folder+'../activities.csv')
             self.loadFolder()
 
         self.show()
@@ -111,6 +118,101 @@ class Uploader(QtWidgets.QMainWindow):
                     self.files.append(file_path)
             self.loadNextFile()
 
+    def loadStravaCSV(self, path) -> None:
+        """
+        Load Strava CSV.
+
+        Parameters
+        ----------
+        path : str
+            Path to load.
+        """
+        if os.path.isfile(path):
+            with open(path, "r") as file:
+                lines = pd.read_csv(file)
+
+        
+        self.strava_csv = lines
+
+    def MapStravaSportToCustomSport(self, label: str, commute: bool) -> str:
+        """
+        Map Strava sport to custom sport.
+
+        Parameters
+        ----------
+        label : str
+            Sport to map.
+
+        Returns
+        -------
+        str
+            Custom sport.
+        """
+        
+        """
+        to map sport list:
+        'Cycling (Sport)'
+        'Cycling (Transport)'
+        'Hiking'
+        'Mountain Biking'
+        'Running'
+        'Walking'
+        'Mountain Biking (Electric)'
+        'Trail'
+        'Skiing (Alpine)'
+        'Skiing (Cross Country)'
+        'Rowing'
+        'Snowshoes'
+        'Cycling (Virtual)'
+        'Mountaineering'
+        'Paragliding'
+        'Open Water Swimming'
+        'Cycling (Trekking)'
+        'Swimrun'
+        """
+        if label == "Ride" and commute:
+            return "Cycling (Transport)"
+        elif label == "Ride":
+            return "Cycling (Sport)"
+        elif label == "Run":
+            return "Running"
+        elif label == "Hike":
+            return "Hiking"
+        elif label == "Walk":
+            return "Walking"
+        elif label == "Virtual Ride":
+            return "Cycling (Virtual)"
+        elif label == "Swim":
+            return "Swimming"
+        elif label == "Alpine Ski":
+            return "Skiing (Alpine)"
+        elif label == "Nordic Ski":
+            return "Skiing (Cross Country)"
+        elif label == "Rowing":
+            return "Rowing"
+
+        logging.info(f"Unknown Strava Sport: {label}")
+        return "Other"
+
+    def findStravaActivity(self, filename) -> None:
+        """
+        Find Strava activity.
+
+        Parameters
+        ----------
+        filename : str
+            Filename to find.
+        """
+        if self.strava_csv is not None:
+            logging.info(f"Searching for Strava Activity: {filename}")
+            logging.info(f"Strava CSV: {self.strava_csv['Filename'][0]}")
+
+            row = self.strava_csv[self.strava_csv['Filename'].str.contains(filename, na=False, regex=False)]
+            # print(row)
+            if len(row) > 0:
+                logging.info(f"Found Strava Activity: {row['Activity Name']}")
+                return row.to_dict('records')[0]
+
     def loadFile(self, path) -> None:
         """
         Load file.
@@ -136,6 +238,22 @@ class Uploader(QtWidgets.QMainWindow):
                 self.setMap(self.current_workout)
                 stats = f'{self.current_workout.getDate().strftime("%d %b, %Y")} {self.current_workout.getTime()} {self.current_workout.getDistance():.2f} km'
                 self.ui.labelStats.setText(stats)
+
+                # Strava Activity
+                if self.strava_csv is not []:
+                    activity = self.findStravaActivity(os.path.basename(path))
+                    if activity is not None:
+                        self.ui.tbTitle.setText(activity["Activity Name"])
+                        current_sport = self.MapStravaSportToCustomSport(activity["Activity Type"], activity["Commute"])
+                      
+                        if current_sport == "Cycling (Sport)" and self.current_workout.distance is not None and self.current_workout.distance < 15:
+                            current_sport = "Cycling (Transport)"
+                        self.ui.cbSportType.setCurrentText(current_sport)
+                # logging.info(f"Sport: {self.current_workout.attributes['custom_sport']}")
+                # self.ui.cbSportType.setCurrentText(self.current_workout.attributes["custom_sport"])
+                self.ui.btUpload.setEnabled(True)
+                
+                # self.ui.tbTitle.setText(self.current_workout.attributes["title"])
 
     def loadNextFile(self) -> None:
         """Load the next file."""
@@ -230,11 +348,15 @@ class Uploader(QtWidgets.QMainWindow):
         -------
         int
             Integer code for sport id.
-        """
+        """        
+        if len(self.sports) == 0:
+            self.loadSports()
+        
         if len(self.sports) > 0:
             for sport in self.sports:
                 if sport["label"] == sport_name:
                     return sport["id"]
+        
         return -1
 
     def getEquipmentID(self, equipment_name: str) -> int:
